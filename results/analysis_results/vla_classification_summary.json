@@ -1,0 +1,407 @@
+{
+  "metadata": {
+    "total_papers": 163,
+    "analysis_date": "2025-07-29T14:34:53.068425",
+    "data_source": "export/vla_all_250729.csv"
+  },
+  "architecture_classification": {
+    "混合架构": {
+      "paper_count": 37,
+      "data_bottleneck_ratio": 0.7027027027027027,
+      "compute_bottleneck_ratio": 0.7027027027027027,
+      "avg_success_rate": 66.49857142857142,
+      "common_tasks": [
+        {
+          "keyword": "机器人操作任务",
+          "count": 4
+        },
+        {
+          "keyword": "仿真",
+          "count": 2
+        },
+        {
+          "keyword": "机器人控制",
+          "count": 2
+        },
+        {
+          "keyword": "空气曲棍球任务",
+          "count": 1
+        },
+        {
+          "keyword": "机器人操作",
+          "count": 1
+        }
+      ],
+      "common_innovations": [
+        {
+          "keyword": "时间统一去噪过程和动作识别训练方法",
+          "count": 1
+        },
+        {
+          "keyword": "动作提示扩展",
+          "count": 1
+        },
+        {
+          "keyword": "熵最大化采样",
+          "count": 1
+        },
+        {
+          "keyword": "视觉语言动作协同表示",
+          "count": 1
+        },
+        {
+          "keyword": "仿真验证闭环数据引擎",
+          "count": 1
+        }
+      ],
+      "representative_papers": [
+        "Towards Safe Robot Foundation Models",
+        "Time-Unified Diffusion Policy with Action Discrimination for Robotic Manipulation",
+        "iManip: Skill-Incremental Learning for Robotic Manipulation"
+      ]
+    },
+    "端到端VLA": {
+      "paper_count": 87,
+      "data_bottleneck_ratio": 0.45977011494252873,
+      "compute_bottleneck_ratio": 0.7586206896551724,
+      "avg_success_rate": 62.49086021505377,
+      "common_tasks": [
+        {
+          "keyword": "机器人操作任务",
+          "count": 17
+        },
+        {
+          "keyword": "机器人操作",
+          "count": 11
+        },
+        {
+          "keyword": "多任务机器人控制",
+          "count": 4
+        },
+        {
+          "keyword": "机器人操控",
+          "count": 4
+        },
+        {
+          "keyword": "导航",
+          "count": 4
+        }
+      ],
+      "common_innovations": [
+        {
+          "keyword": "首次将",
+          "count": 6
+        },
+        {
+          "keyword": "模型",
+          "count": 3
+        },
+        {
+          "keyword": "架构创新",
+          "count": 2
+        },
+        {
+          "keyword": "首次实现",
+          "count": 2
+        },
+        {
+          "keyword": "架构",
+          "count": 2
+        }
+      ],
+      "representative_papers": [
+        "ConRFT: A Reinforced Fine-tuning Method for VLA Models via Consistency Policy",
+        "GRAPE: Generalizing Robot Policy via Preference Alignment",
+        "SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Model"
+      ]
+    },
+    "分层式VLA": {
+      "paper_count": 37,
+      "data_bottleneck_ratio": 0.4594594594594595,
+      "compute_bottleneck_ratio": 0.7567567567567568,
+      "avg_success_rate": 62.72702127659576,
+      "common_tasks": [
+        {
+          "keyword": "机器人操控",
+          "count": 3
+        },
+        {
+          "keyword": "机器人操作",
+          "count": 3
+        },
+        {
+          "keyword": "物体操纵",
+          "count": 3
+        },
+        {
+          "keyword": "机器人操作任务",
+          "count": 2
+        },
+        {
+          "keyword": "放置",
+          "count": 2
+        }
+      ],
+      "common_innovations": [
+        {
+          "keyword": "框架",
+          "count": 2
+        },
+        {
+          "keyword": "结合",
+          "count": 2
+        },
+        {
+          "keyword": "新型分层架构",
+          "count": 1
+        },
+        {
+          "keyword": "跨模态数据训练范式",
+          "count": 1
+        },
+        {
+          "keyword": "联合嵌入预测架构",
+          "count": 1
+        }
+      ],
+      "representative_papers": [
+        "HAMSTER: HIERARCHICAL ACTION MODELS FOR OPEN-WORLD ROBOT MANIPULATION",
+        "V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning",
+        "GeoManip: Geometric Constraints as General Interfaces for Robot Manipulation"
+      ]
+    },
+    "Hierarchical VLA": {
+      "paper_count": 1,
+      "data_bottleneck_ratio": 0.0,
+      "compute_bottleneck_ratio": 1.0,
+      "avg_success_rate": 26.29,
+      "common_tasks": [],
+      "common_innovations": [],
+      "representative_papers": [
+        "RoboHorizon: An LLM-Assisted Multi-View World Model for Long-Horizon Robotic Manipulation"
+      ]
+    },
+    "非VLA": {
+      "paper_count": 1,
+      "data_bottleneck_ratio": 0.0,
+      "compute_bottleneck_ratio": 0.0,
+      "avg_success_rate": 0,
+      "common_tasks": [
+        {
+          "keyword": "接触力控制",
+          "count": 1
+        }
+      ],
+      "common_innovations": [
+        {
+          "keyword": "基于",
+          "count": 1
+        },
+        {
+          "keyword": "的电容传感创新设计",
+          "count": 1
+        }
+      ],
+      "representative_papers": [
+        "CoinFT: A Coin-Sized, Capacitive 6-Axis Force Torque Sensor for Robotic Applications"
+      ]
+    }
+  },
+  "bottleneck_classification": {
+    "data_bottleneck_only": {
+      "paper_count": 16,
+      "architecture_distribution": {
+        "端到端VLA": 8,
+        "混合架构": 5,
+        "分层式VLA": 3
+      },
+      "common_solutions": [
+        {
+          "keyword": "微调",
+          "count": 3
+        },
+        {
+          "keyword": "参数",
+          "count": 2
+        },
+        {
+          "keyword": "机器人操控",
+          "count": 2
+        },
+        {
+          "keyword": "时序回放策略保留关键帧",
+          "count": 1
+        },
+        {
+          "keyword": "利用启发式规则生成合成数据",
+          "count": 1
+        }
+      ],
+      "avg_model_size": 105.57142857142857,
+      "representative_papers": [
+        "iManip: Skill-Incremental Learning for Robotic Manipulation",
+        "CrayonRobo: Object-Centric Prompt-Driven Vision-Language-Action Model for Robotic Manipulation",
+        "Task Reconstruction and Extrapolation for π0 using Text Latent"
+      ]
+    },
+    "compute_bottleneck_only": {
+      "paper_count": 55,
+      "architecture_distribution": {
+        "端到端VLA": 34,
+        "分层式VLA": 15,
+        "混合架构": 5,
+        "Hierarchical VLA": 1
+      },
+      "common_solutions": [
+        {
+          "keyword": "数据集",
+          "count": 4
+        },
+        {
+          "keyword": "微调",
+          "count": 4
+        },
+        {
+          "keyword": "参数",
+          "count": 3
+        },
+        {
+          "keyword": "采用",
+          "count": 3
+        },
+        {
+          "keyword": "量化",
+          "count": 3
+        }
+      ],
+      "avg_model_size": 36.649803921568626,
+      "representative_papers": [
+        "V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning",
+        "SpatialVLA: Exploring Spatial Representations for Visual-Language-Action Model",
+        "RoboFlamingo-Plus: Fusion of Depth and RGB Perception with Vision-Language Models for Enhanced Robotic Manipulation"
+      ]
+    },
+    "both_bottlenecks": {
+      "paper_count": 66,
+      "architecture_distribution": {
+        "端到端VLA": 32,
+        "混合架构": 21,
+        "分层式VLA": 13
+      },
+      "common_solutions": [
+        {
+          "keyword": "微调",
+          "count": 7
+        },
+        {
+          "keyword": "参数",
+          "count": 5
+        },
+        {
+          "keyword": "使用",
+          "count": 5
+        },
+        {
+          "keyword": "数据增强",
+          "count": 4
+        },
+        {
+          "keyword": "预训练",
+          "count": 3
+        }
+      ],
+      "avg_model_size": 56.699393939393936,
+      "representative_papers": [
+        "Time-Unified Diffusion Policy with Action Discrimination for Robotic Manipulation",
+        "ConRFT: A Reinforced Fine-tuning Method for VLA Models via Consistency Policy",
+        "HAMSTER: HIERARCHICAL ACTION MODELS FOR OPEN-WORLD ROBOT MANIPULATION"
+      ]
+    },
+    "no_bottleneck": {
+      "paper_count": 25,
+      "architecture_distribution": {
+        "端到端VLA": 13,
+        "混合架构": 6,
+        "分层式VLA": 5,
+        "非VLA": 1
+      },
+      "common_solutions": [
+        {
+          "keyword": "参数",
+          "count": 2
+        },
+        {
+          "keyword": "数据集",
+          "count": 2
+        },
+        {
+          "keyword": "微调",
+          "count": 2
+        },
+        {
+          "keyword": "安全层转换",
+          "count": 1
+        },
+        {
+          "keyword": "多阶段代价生成",
+          "count": 1
+        }
+      ],
+      "avg_model_size": 59.36,
+      "representative_papers": [
+        "Towards Safe Robot Foundation Models",
+        "GRAPE: Generalizing Robot Policy via Preference Alignment",
+        "GeoManip: Geometric Constraints as General Interfaces for Robot Manipulation"
+      ]
+    }
+  },
+  "overall_trends": {
+    "most_common_architecture": "端到端VLA",
+    "bottleneck_distribution": {
+      "data_bottleneck_ratio": 0.50920245398773,
+      "compute_bottleneck_ratio": 0.7423312883435583
+    },
+    "emerging_keywords": [
+      {
+        "keyword": "首次将",
+        "count": 7
+      },
+      {
+        "keyword": "模型",
+        "count": 4
+      },
+      {
+        "keyword": "架构",
+        "count": 4
+      },
+      {
+        "keyword": "框架",
+        "count": 3
+      },
+      {
+        "keyword": "结合",
+        "count": 3
+      },
+      {
+        "keyword": "架构创新",
+        "count": 2
+      },
+      {
+        "keyword": "首次实现",
+        "count": 2
+      },
+      {
+        "keyword": "首个将",
+        "count": 2
+      },
+      {
+        "keyword": "引入",
+        "count": 2
+      },
+      {
+        "keyword": "时间统一去噪过程和动作识别训练方法",
+        "count": 1
+      }
+    ]
+  }
+}

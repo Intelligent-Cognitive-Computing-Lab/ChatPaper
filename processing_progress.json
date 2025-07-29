@@ -1,0 +1,32 @@
+{
+  "7b06f1fdee066ec8f5e23915b9aeca3b": {
+    "status": "completed",
+    "paper_path": "/Users/sunyukun/VLA-VLN-VA-Papers/VLA/2023/Prompt a Robot to Walk with Large Language Models.pdf",
+    "output_file": "./results/export/2025-07-29-15-merged_papers.csv",
+    "completed_time": "2025-07-29 15:09:28.205806"
+  },
+  "61edea32c74918f82f76a365712e69f1": {
+    "status": "completed",
+    "paper_path": "/Users/sunyukun/VLA-VLN-VA-Papers/VLA/2023/Unleashing Large-Scale Video Generative Pre-training for Visual Robot Manipulation.pdf",
+    "output_file": "./results/export/2025-07-29-15-merged_papers.csv",
+    "completed_time": "2025-07-29 15:09:32.183832"
+  },
+  "3f01cfd121783767dd1cf6b6f8e717d8": {
+    "status": "completed",
+    "paper_path": "/Users/sunyukun/VLA-VLN-VA-Papers/VLA/2023/Compositional Foundation Models for Hierarchical Planning.pdf",
+    "output_file": "./results/export/2025-07-29-15-merged_papers.csv",
+    "completed_time": "2025-07-29 15:09:47.359810"
+  },
+  "7495bdb8177c1ff83c6ae24e6a99e47c": {
+    "status": "completed",
+    "paper_path": "/Users/sunyukun/VLA-VLN-VA-Papers/VLA/2023/Learning Universal Policies via Text-Guided Video Generation.pdf",
+    "output_file": "./results/export/2025-07-29-15-merged_papers.csv",
+    "completed_time": "2025-07-29 15:09:49.818436"
+  },
+  "96c75ff66d4b8b6e9a6a3378447991aa": {
+    "status": "completed",
+    "paper_path": "/Users/sunyukun/VLA-VLN-VA-Papers/VLA/2023/Learning to Act from Actionless Videos through Dense Correspondences.pdf",
+    "output_file": "./results/export/2025-07-29-15-merged_papers.csv",
+    "completed_time": "2025-07-29 15:10:15.310027"
+  }
+}

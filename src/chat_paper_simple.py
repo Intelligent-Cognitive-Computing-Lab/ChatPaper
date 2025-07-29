@@ -180,7 +180,8 @@ class Reader:
         
         # 读取配置文件
         self.config = configparser.ConfigParser()
-        self.config.read('apikey.ini')
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'apikey.ini')
+        self.config.read(config_path)
         
         # OpenAI配置
         OPENAI_KEY = os.environ.get("OPENAI_KEY", "")
@@ -206,7 +207,7 @@ class Reader:
         
         # 进度跟踪
         self.progress_file = 'processing_progress.json'
-        self.export_path = os.path.join('./', 'export')
+        self.export_path = os.path.join('./', 'results', 'export')
         if not os.path.exists(self.export_path):
             os.makedirs(self.export_path)
         
@@ -929,7 +930,8 @@ class TokenManager:
         return text.strip()
 
 
-if __name__ == '__main__':
+def main():
+    """主函数，用于命令行调用和模块导入"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--pdf_path", type=str, default=r'demo.pdf', help="PDF文件路径或包含PDF文件的文件夹路径")
     parser.add_argument("--key_word", type=str, default='reinforcement learning', help="研究领域关键词")
@@ -998,3 +1000,6 @@ if __name__ == '__main__':
         print("\n=== 处理完成 ===")
     else:
         print("未找到PDF文件！")
+
+if __name__ == '__main__':
+    main()

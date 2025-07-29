@@ -1,0 +1,83 @@
+{
+  "title": "Vision-Language-Action Models under Resource Constraints: A Comprehensive Survey",
+  "sections": [
+    {
+      "name": "Introduction",
+      "subsections": [
+        "Background",
+        "Motivation",
+        "Contributions",
+        "Organization"
+      ],
+      "pages": 3
+    },
+    {
+      "name": "Background and Related Work",
+      "subsections": [
+        "VLA Model Evolution",
+        "Resource Constraints in AI",
+        "Efficiency Optimization Techniques"
+      ],
+      "pages": 4
+    },
+    {
+      "name": "VLA Architecture Taxonomy",
+      "subsections": [
+        "End-to-End VLA",
+        "Hierarchical VLA",
+        "Hybrid Architectures",
+        "Comparative Analysis"
+      ],
+      "pages": 6
+    },
+    {
+      "name": "Resource Bottleneck Analysis",
+      "subsections": [
+        "Data Bottlenecks",
+        "Compute Bottlenecks",
+        "Combined Constraints",
+        "Impact Assessment"
+      ],
+      "pages": 5
+    },
+    {
+      "name": "Solution Strategies and Innovations",
+      "subsections": [
+        "Data Efficiency Techniques",
+        "Compute Optimization Methods",
+        "Architectural Innovations",
+        "Case Studies"
+      ],
+      "pages": 8
+    },
+    {
+      "name": "Performance Analysis and Benchmarking",
+      "subsections": [
+        "Evaluation Metrics",
+        "Benchmark Datasets",
+        "Performance Trends",
+        "Resource-Performance Trade-offs"
+      ],
+      "pages": 4
+    },
+    {
+      "name": "Future Directions and Open Challenges",
+      "subsections": [
+        "Emerging Trends",
+        "Technical Challenges",
+        "Research Opportunities",
+        "Industry Applications"
+      ],
+      "pages": 3
+    },
+    {
+      "name": "Conclusion",
+      "subsections": [
+        "Key Findings",
+        "Implications",
+        "Final Remarks"
+      ],
+      "pages": 2
+    }
+  ]
+}
