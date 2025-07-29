@@ -10,6 +10,8 @@ build/
 .idea/*
 export
 export/*
+results
+results/*
 apikey.ini
 pdf_files
 pdf_files/*
