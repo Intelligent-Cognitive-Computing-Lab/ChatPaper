@@ -8,6 +8,11 @@ import tiktoken
 import fitz  # PyMuPDF
 import json
 import hashlib
+import threading
+import queue
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from paper_info_extractor import PaperInfoExtractor, enhance_paper_with_local_info
 
 
 class Paper:
@@ -195,7 +200,7 @@ class Reader:
 
         self.cur_api = 0
         self.file_format = args.file_format if args else 'md'
-        self.max_token_num = args.max_tokens if args else 4096
+        self.max_token_num = args.max_tokens if args else 60000  # 修改默认值以充分利用64k上下文
         self.encoding = tiktoken.get_encoding("gpt2")
         self.token_manager = TokenManager(max_token_num=self.max_token_num, model=self.chatgpt_model)
         
@@ -208,6 +213,10 @@ class Reader:
         # CSV合并相关
         self.merged_csv_file = None
         self.csv_header_written = False
+        self.csv_lock = threading.Lock()  # 添加锁保护CSV写入
+
+        # 添加本地信息提取器
+        self.info_extractor = PaperInfoExtractor()
 
     def get_paper_hash(self, paper_path):
         """生成论文文件的唯一标识"""
@@ -321,6 +330,90 @@ class Reader:
         print(f"新处理: {processed_count} 篇，跳过: {skipped_count} 篇，失败: {failed_count} 篇，总计: {len(pdf_paths)} 个文件")
         print(f"📄 合并结果已保存到: {self.merged_csv_file}")
 
+    def summary_with_chat_parallel(self, pdf_paths, truncation_strategy="balanced", max_workers=3):
+        """多线程并行处理PDF文件"""
+        print(f"\n=== 开始并行处理PDF文件，总共 {len(pdf_paths)} 个文件，策略: {truncation_strategy}，线程数: {max_workers} ===")
+        
+        # 初始化合并的CSV文件
+        date_str = str(datetime.datetime.now())[:13].replace(' ', '-')
+        self.merged_csv_file = os.path.join(self.export_path, f"{date_str}-merged_papers.csv")
+        
+        # 加载进度（会检查现有文件）
+        progress = self.load_progress()
+        
+        # 检查合并文件是否已存在且有内容
+        if os.path.exists(self.merged_csv_file):
+            with open(self.merged_csv_file, 'r', encoding='utf-8') as f:
+                existing_content = f.read().strip()
+                if existing_content:
+                    self.csv_header_written = True
+                    print(f"📄 检测到现有合并文件，将继续追加: {self.merged_csv_file}")
+                else:
+                    self.csv_header_written = False
+                    print(f"📄 创建新的合并文件: {self.merged_csv_file}")
+        else:
+            self.csv_header_written = False
+            print(f"📄 创建新的合并文件: {self.merged_csv_file}")
+        
+        # 过滤出需要处理的PDF
+        pdf_to_process = []
+        skipped_count = 0
+        
+        for pdf_path in pdf_paths:
+            if self.is_paper_processed(pdf_path, progress):
+                print(f"✅ {os.path.basename(pdf_path)} 已处理过，跳过")
+                skipped_count += 1
+            else:
+                pdf_to_process.append(pdf_path)
+        
+        if not pdf_to_process:
+            print("所有PDF都已处理完成")
+            return
+        
+        print(f"需要处理的PDF: {len(pdf_to_process)} 个，已跳过: {skipped_count} 个")
+        
+        # 使用线程池并行处理
+        processed_count = 0
+        failed_count = 0
+        start_time = time.time()
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_pdf = {
+                executor.submit(self.process_single_pdf_complete_thread_safe, pdf_path, truncation_strategy, progress): pdf_path 
+                for pdf_path in pdf_to_process
+            }
+            
+            # 处理完成的任务
+            for future in as_completed(future_to_pdf):
+                pdf_path = future_to_pdf[future]
+                pdf_name = os.path.basename(pdf_path)
+                
+                try:
+                    success = future.result()
+                    if success:
+                        processed_count += 1
+                        elapsed = time.time() - start_time
+                        avg_time = elapsed / processed_count if processed_count > 0 else 0
+                        remaining = len(pdf_to_process) - processed_count - failed_count
+                        est_remaining = avg_time * remaining
+                        
+                        print(f"✅ [{processed_count + failed_count}/{len(pdf_to_process)}] {pdf_name} 处理完成")
+                        print(f"   ⏱️  已用时: {elapsed:.1f}s, 平均: {avg_time:.1f}s/篇, 预计剩余: {est_remaining:.1f}s")
+                    else:
+                        failed_count += 1
+                        print(f"❌ [{processed_count + failed_count}/{len(pdf_to_process)}] {pdf_name} 处理失败")
+                        
+                except Exception as e:
+                    failed_count += 1
+                    print(f"❌ [{processed_count + failed_count}/{len(pdf_to_process)}] {pdf_name} 处理异常: {e}")
+        
+        total_time = time.time() - start_time
+        print(f"\n=== 并行处理完成 ===")
+        print(f"成功: {processed_count} 篇，失败: {failed_count} 篇，跳过: {skipped_count} 篇")
+        print(f"总耗时: {total_time:.1f}s，平均: {total_time/len(pdf_to_process):.1f}s/篇")
+        print(f"📄 合并结果已保存到: {self.merged_csv_file}")
+
     def process_single_pdf_complete(self, pdf_path, truncation_strategy, progress):
         """完整处理单个PDF：预处理+总结"""
         paper = None
@@ -353,9 +446,89 @@ class Reader:
                     pass
             return False
 
+    def process_single_pdf_complete_thread_safe(self, pdf_path, truncation_strategy, progress):
+        """线程安全的单个PDF处理方法"""
+        paper = None
+        try:
+            # 线程ID用于日志区分
+            thread_id = threading.current_thread().name
+            pdf_name = os.path.basename(pdf_path)
+            
+            print(f"🔄 [{thread_id}] 开始处理: {pdf_name}")
+            
+            # 预处理：解析PDF
+            paper = Paper(path=pdf_path)
+            
+            # 总结处理
+            success = self.process_single_paper_thread_safe(paper, truncation_strategy, progress, thread_id)
+            
+            # 清理内存
+            if paper and hasattr(paper, 'pdf'):
+                try:
+                    paper.pdf.close()
+                except:
+                    pass
+            del paper
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ [{threading.current_thread().name}] PDF预处理失败: {e}")
+            # 确保清理资源
+            if paper and hasattr(paper, 'pdf'):
+                try:
+                    paper.pdf.close()
+                except:
+                    pass
+            return False
+
+    def append_to_merged_csv(self, csv_content, pdf_path):
+        """将CSV内容追加到合并文件中（线程安全）"""
+        with self.csv_lock:  # 使用锁确保线程安全
+            try:
+                lines = csv_content.strip().split('\n')
+                
+                # 过滤掉所有包含"论文标题"的行（表头行）
+                data_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line and not line.startswith('论文标题') and '论文标题,作者,发表年份' not in line:
+                        data_lines.append(line)
+                
+                if not data_lines:
+                    print("⚠️  没有找到有效的数据行，跳过")
+                    return
+                
+                # 取第一个有效数据行
+                data_line = data_lines[0]
+                
+                # 获取文件名
+                file_name = os.path.basename(pdf_path)
+                
+                # 如果是第一次写入，写入表头（包含文件名列）
+                if not self.csv_header_written:
+                    header = "文件名,论文标题,作者,发表年份,期刊会议,DOI,arXiv ID,VLA架构类型,主要贡献/目标,数据瓶颈,算力瓶颈,资源约束类型,数据类型,数据规模,数据获取方法,数据瓶颈解决策略,模型规模,训练资源需求,推理效率,算力瓶颈解决策略,任务类型,实验环境,性能指标,资源-性能权衡,优点,缺点/局限,未来方向,创新点"
+                    with open(self.merged_csv_file, 'w', encoding='utf-8') as f:
+                        f.write(header + '\n')
+                    self.csv_header_written = True
+                    print("📋 CSV表头已写入（包含文件名、期刊会议、DOI、arXiv ID列）")
+                
+                # 追加数据行（LLM输出已包含文件名）
+                with open(self.merged_csv_file, 'a', encoding='utf-8') as f:
+                    f.write(f'{data_line}\n')
+                
+                print(f"📝 数据已追加到合并文件（线程安全）")
+                
+            except Exception as e:
+                print(f"❌ 追加CSV内容失败: {e}")
+
     def process_single_paper(self, paper, truncation_strategy, progress):
         """处理单篇已解析的论文"""
         try:
+            # 本地提取基础信息
+            print("📋 本地提取基础信息...")
+            enhanced_info = enhance_paper_with_local_info(paper, self.info_extractor)
+            
             # 准备所有文本内容
             all_text = ''
             all_text += 'Title: ' + paper.title + '\n'
@@ -379,8 +552,9 @@ class Reader:
             while retry_count < max_retries:
                 try:
                     print(f"🔄 调用API (尝试 {retry_count + 1}/{max_retries})")
-                    chat_conclusion_text = self.chat_conclusion(
+                    chat_conclusion_text = self.chat_conclusion_with_local_info(
                         text=all_text, 
+                        enhanced_info=enhanced_info,
                         truncation_strategy=truncation_strategy
                     )
                     print("✅ 结构化总结生成成功")
@@ -395,7 +569,7 @@ class Reader:
 
             # 保存结果到合并的CSV文件
             print("💾 保存结果到合并CSV文件...")
-            self.append_to_merged_csv(chat_conclusion_text)
+            self.append_to_merged_csv(chat_conclusion_text, paper.path)
             
             # 同时保存单独的文件作为备份
             date_str = str(datetime.datetime.now())[:13].replace(' ', '-')
@@ -418,35 +592,74 @@ class Reader:
             print(f"❌ 处理论文时出错: {e}")
             return False
 
-    def append_to_merged_csv(self, csv_content):
-        """将CSV内容追加到合并文件中"""
+    def process_single_paper_thread_safe(self, paper, truncation_strategy, progress, thread_id):
+        """线程安全的单篇论文处理"""
         try:
-            lines = csv_content.strip().split('\n')
-            if len(lines) < 2:
-                print("⚠️  CSV内容格式不正确，跳过")
-                return
+            # 本地提取基础信息
+            enhanced_info = enhance_paper_with_local_info(paper, self.info_extractor)
             
-            header_line = lines[0]
-            data_line = lines[1]
+            # 准备所有文本内容
+            all_text = ''
+            all_text += 'Title: ' + paper.title + '\n'
+            all_text += 'Paper_info: ' + paper.section_text_dict['paper_info'] + '\n'
             
-            # 如果是第一次写入，写入表头
-            if not self.csv_header_written:
-                with open(self.merged_csv_file, 'w', encoding='utf-8') as f:
-                    f.write(header_line + '\n')
-                self.csv_header_written = True
-                print("📋 CSV表头已写入")
+            # 添加各个章节内容
+            for section_name, section_content in paper.section_text_dict.items():
+                if section_name not in ['title', 'paper_info']:
+                    all_text += f'{section_name}: {section_content}\n'
             
-            # 追加数据行（跳过表头）
-            with open(self.merged_csv_file, 'a', encoding='utf-8') as f:
-                f.write(data_line + '\n')
+            original_tokens = self.token_manager.count_tokens(all_text)
             
-            print(f"📝 数据已追加到合并文件")
+            # 生成结构化总结
+            chat_conclusion_text = ""
+            retry_count = 0
+            max_retries = 3
+            
+            while retry_count < max_retries:
+                try:
+                    chat_conclusion_text = self.chat_conclusion_with_local_info(
+                        text=all_text, 
+                        enhanced_info=enhanced_info,
+                        truncation_strategy=truncation_strategy
+                    )
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    print(f"❌ [{thread_id}] API调用失败 (尝试 {retry_count}): {e}")
+                    if retry_count < max_retries:
+                        time.sleep(2 ** retry_count)  # 指数退避
+                    
+                    if retry_count >= max_retries:
+                        print(f"⚠️  [{thread_id}] 达到最大重试次数，跳过此论文")
+                        return False
+
+            # 保存结果到合并的CSV文件（线程安全）
+            self.append_to_merged_csv(chat_conclusion_text, paper.path)
+            
+            # 同时保存单独的文件作为备份
+            date_str = str(datetime.datetime.now())[:13].replace(' ', '-')
+            backup_file = os.path.join(self.export_path, 'individual_backups',
+                                     date_str + '-' + self.validateTitle(paper.title[:80]) + ".csv")
+            
+            # 创建备份目录
+            backup_dir = os.path.dirname(backup_file)
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+            
+            self.export_to_markdown(chat_conclusion_text, file_name=backup_file)
+            
+            # 标记完成并保存进度（需要保护共享资源）
+            with self.csv_lock:
+                self.mark_paper_completed(paper.path, self.merged_csv_file, progress)
+            
+            return True
             
         except Exception as e:
-            print(f"❌ 追加CSV内容失败: {e}")
+            print(f"❌ [{thread_id}] 处理论文时出错: {e}")
+            return False
 
-    def chat_conclusion(self, text, conclusion_prompt_token=800, truncation_strategy="balanced"):
-        """结构化总结论文"""
+    def chat_conclusion_with_local_info(self, text, enhanced_info, conclusion_prompt_token=2000, truncation_strategy="balanced"):
+        """结合本地信息的结构化总结"""
         # 确保API配置正确
         openai.api_key = self.chat_api_list[self.cur_api]
         
@@ -465,45 +678,72 @@ class Reader:
         processed_token = self.token_manager.count_tokens(processed_text)
         print(f"处理后文本token数: {processed_token}, 策略: {truncation_strategy}")
         
-        return self._single_call_conclusion(processed_text)
-    
-    def _single_call_conclusion(self, text):
-        """单次LLM调用进行结构化总结"""
+        return self._single_call_conclusion_with_local_info(processed_text, enhanced_info)
+
+    def _single_call_conclusion_with_local_info(self, text, enhanced_info):
+        """结合本地信息的单次LLM调用"""
+        
+        # 构建本地信息提示
+        local_info_prompt = f"""
+已提取的论文基础信息:
+- 文件名: {enhanced_info['file_name']}
+- 提取标题: {enhanced_info['extracted_title']}
+- 提取作者: {enhanced_info['extracted_authors']}
+- 提取年份: {enhanced_info['extracted_year']}
+- 提取期刊/会议: {enhanced_info['extracted_venue']}
+- DOI: {enhanced_info['extracted_doi']}
+- arXiv ID: {enhanced_info['extracted_arxiv_id'] if enhanced_info['extracted_arxiv_id'] else '未提及'}
+"""
+        
         messages = [
             {"role": "system",
              "content": f"You are a research expert specializing in Vision Language Action (VLA) models and resource-constrained AI systems. Your expertise focuses on analyzing data bottlenecks and computational bottlenecks in VLA models. You are conducting a comprehensive survey on 'Resource-Constrained Vision Language Action Models' in the field of [{self.key_word}]."},
             {"role": "assistant",
-             "content": "I'll analyze this VLA-related paper with special attention to resource constraints, data bottlenecks, and computational bottlenecks. Here's the complete paper content: " + text},
-            {"role": "user", "content": """
-Please analyze this paper focusing on Vision Language Action (VLA) models and resource constraints. Output results in CSV format with exactly two lines: header line and data line.
+             "content": f"I'll analyze this VLA-related paper with special attention to resource constraints, data bottlenecks, and computational bottlenecks. {local_info_prompt}\n\nHere's the complete paper content: {text}"},
+            {"role": "user", "content": f"""
+Please analyze this paper focusing on Vision Language Action (VLA) models and resource constraints. Output results in CSV format with ONLY ONE DATA LINE (no headers).
 
-Use these headers (do not modify):
-论文标题,作者,发表年份,VLA架构类型,主要贡献/目标,数据瓶颈,算力瓶颈,资源约束类型,数据类型,数据规模,数据获取方法,数据瓶颈解决策略,模型规模,训练资源需求,推理效率,算力瓶颈解决策略,任务类型,实验环境,性能指标,资源-性能权衡,优点,缺点/局限,未来方向,创新点
+IMPORTANT: Use the provided extracted information for basic fields:
+- File Name: Use "{enhanced_info['file_name']}"
+- Title: Use "{enhanced_info['extracted_title']}" if available, otherwise extract from content
+- Authors: Use "{enhanced_info['extracted_authors']}" if available
+- Year: Use "{enhanced_info['extracted_year']}" if available
+- Venue: Use "{enhanced_info['extracted_venue']}" if available
+- DOI: Use "{enhanced_info['extracted_doi']}" if available
+- arXiv ID: Use "{enhanced_info['extracted_arxiv_id'] if enhanced_info['extracted_arxiv_id'] else '未提及'}"
 
-Analysis Guidelines:
-1. **VLA架构类型**: 分类为"端到端VLA"、"分层式VLA"、"混合架构"、"非VLA"之一
-2. **数据瓶颈**: 严格使用"是"或"否"，判断是否存在数据稀缺/标注成本高/数据质量等问题
-3. **算力瓶颈**: 严格使用"是"或"否"，判断是否存在训练/推理计算资源限制
-4. **资源约束类型**: 从"数据稀缺/标注成本/计算资源/存储限制/实时性要求/内存限制"中选择，多个用"/"分隔
-5. **数据规模**: 提供具体数量，如"10K样本"、"1M轨迹"、"100小时视频"等
-6. **训练资源需求**: 具体描述如"8×V100 GPU，72小时"、"未提及"
-7. **推理效率**: 包含FPS、延迟、内存占用等，如"30FPS，50ms延迟"
-8. **性能指标**: 重点关注成功率、精度等与资源的权衡
-9. **资源-性能权衡**: 描述在资源约束下的性能变化，如"数据减半时精度下降10%"
+Expected format (single line):
+"File Name","Paper Title","Authors","Year","Venue","DOI","arXiv ID","VLA Type","Main Contribution","Data Bottleneck","Compute Bottleneck","Resource Constraint Type","Data Type","Data Scale","Data Collection","Data Solution","Model Scale","Training Resources","Inference Efficiency","Compute Solution","Task Type","Environment","Performance","Resource-Performance Tradeoff","Advantages","Limitations","Future Work","Innovation"
 
-Special Focus Areas:
-- 数据效率提升方法（数据增强、合成数据、少样本学习）
-- 计算效率优化（模型压缩、知识蒸馏、高效架构）
-- 多模态融合的资源开销
-- 实时推理的资源约束
-- 具身智能中的资源限制
+ENHANCED Analysis Guidelines:
 
-Output Requirements:
-1. Use Chinese for descriptions, English for technical terms/model names/proper nouns
-2. Use "未提及" for missing information
-3. Escape commas in fields with double quotes
-4. Provide quantitative data when available
-5. Focus on resource-related innovations and constraints
+1. **VLA架构类型**: 严格分类
+   - "端到端VLA": 统一模型处理视觉-语言-动作
+   - "分层式VLA": 明确的高层规划+低层控制分离
+   - "混合架构": 结合多种方法或模块化设计
+   - "非VLA": 不属于VLA范畴的工作
+
+2. **数据瓶颈/算力瓶颈**: 只能是"是"或"否"
+   - 数据瓶颈: 论文中明确提到数据稀缺、标注成本高、数据质量问题
+   - 算力瓶颈: 论文中明确提到计算资源限制、训练/推理时间长、内存不足
+
+3. **标准化格式要求**:
+   - **发表年份**: 优先使用提取的年份，格式为4位数字
+   - **作者**: 优先使用提取的作者信息
+   - **期刊/会议**: 优先使用提取的venue信息
+   - **DOI**: 优先使用提取的DOI信息
+   - **arXiv ID**: 优先使用提取的arXiv ID信息
+   - **数据规模**: 统一格式"数量+单位"，如"100K轨迹"、"50小时视频"
+   - **模型规模**: 优先写参数量，如"7B参数"、"1.2B参数"
+   - **训练资源**: 格式"GPU数量×GPU型号，训练时间"
+   - **推理效率**: 格式"频率/延迟"，如"10Hz"、"100ms延迟"
+
+CRITICAL REQUIREMENTS:
+- Output ONLY ONE line of data (no header row)  
+- Use Chinese for descriptions, English for technical terms/model names
+- Use "未提及" for missing information consistently
+- Prioritize extracted local information for basic fields
+- Focus on quantitative rather than qualitative descriptions
 """},
         ]
 
@@ -512,14 +752,14 @@ Output Requirements:
                 response = openai.ChatCompletion.create(
                     engine=self.chatgpt_model,
                     messages=messages,
-                    temperature=0.1,
+                    temperature=0.0,
                     max_tokens=2000
                 )
             else:
                 response = openai.ChatCompletion.create(
                     model=self.chatgpt_model,
                     messages=messages,
-                    temperature=0.1,
+                    temperature=0.0,
                     max_tokens=2000
                 )
                 
@@ -695,13 +935,17 @@ if __name__ == '__main__':
     parser.add_argument("--key_word", type=str, default='reinforcement learning', help="研究领域关键词")
     parser.add_argument("--file_format", type=str, default='csv', help="导出的文件格式 (csv)")
     parser.add_argument("--language", type=str, default='zh', help="输出语言 (zh/en)")
-    parser.add_argument("--truncation_strategy", type=str, default="sections", 
+    parser.add_argument("--truncation_strategy", "--strategy", type=str, default="sections", 
                         choices=['front', 'balanced', 'sections'],
                         help="长论文处理策略: front(前半部分) / balanced(平衡保留) / sections(章节优先)")
-    parser.add_argument("--max_tokens", type=int, default=4096, 
-                        help="最大token数限制")
+    parser.add_argument("--max_tokens", type=int, default=60000, 
+                        help="最大token数限制（默认60000以充分利用64k上下文）")
     parser.add_argument("--resume", action="store_true", 
                         help="从上次中断处继续处理")
+    parser.add_argument("--parallel", action="store_true", 
+                        help="启用多线程并行处理（推荐用于多个PDF文件）")
+    parser.add_argument("--max_workers", type=int, default=3, 
+                        help="并行处理的最大线程数（默认3）")
 
     args = parser.parse_args()
     
@@ -711,6 +955,9 @@ if __name__ == '__main__':
     print(f"处理策略: {args.truncation_strategy}")
     print(f"最大tokens: {args.max_tokens}")
     print(f"断点续传: {'启用' if args.resume else '禁用'}")
+    print(f"并行处理: {'启用' if args.parallel else '禁用'}")
+    if args.parallel:
+        print(f"线程数: {args.max_workers}")
     
     reader = Reader(key_word=args.key_word, args=args)
     reader.max_token_num = args.max_tokens
@@ -738,8 +985,16 @@ if __name__ == '__main__':
     [print(f"{pdf_index + 1}. {pdf_path.split('/')[-1]}") for pdf_index, pdf_path in enumerate(pdf_paths)]
     
     if pdf_paths:
-        # 逐篇预处理+总结
-        reader.summary_with_chat(pdf_paths, truncation_strategy=args.truncation_strategy)
+        if args.parallel and len(pdf_paths) > 1:
+            # 多线程并行处理
+            reader.summary_with_chat_parallel(pdf_paths, 
+                                            truncation_strategy=args.truncation_strategy,
+                                            max_workers=args.max_workers)
+        else:
+            # 单线程顺序处理
+            if args.parallel and len(pdf_paths) == 1:
+                print("只有一个PDF文件，自动切换到单线程模式")
+            reader.summary_with_chat(pdf_paths, truncation_strategy=args.truncation_strategy)
         print("\n=== 处理完成 ===")
     else:
         print("未找到PDF文件！")
